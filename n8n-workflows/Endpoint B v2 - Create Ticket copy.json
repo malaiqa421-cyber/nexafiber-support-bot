@@ -1,0 +1,527 @@
+{
+  "name": "Endpoint B v2 - Create Ticket copy",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "api/v1/create-ticket",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        96
+      ],
+      "id": "6e9f4d59-c333-43d3-a9d2-368cddf4437a",
+      "name": "Webhook",
+      "webhookId": "76fb12ad-d2b3-4946-bc44-eb78f8010145"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "53dff310-930c-4509-84bf-4f76da3fd79d",
+              "leftValue": "={{ /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test($json.body.email || '') && String($json.body.question || '').trim().length > 0 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        224,
+        96
+      ],
+      "id": "790a329c-a027-4e7b-9224-96a3ec85b87b",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{ \"error\": \"Invalid email or question\" }",
+        "options": {
+          "responseCode": 400,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        448,
+        192
+      ],
+      "id": "3d405483-1e31-40f2-90aa-f7509c7319cd",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "const b = $input.first().json.body || $input.first().json;\n\nconst ticket_id = 'TCK-' + Math.floor(100000 + Math.random() * 900000);\n\nconst p = String(b.priority || '').toLowerCase();\nconst priority = ['low', 'medium', 'urgent'].includes(p) ? p : 'medium';\nconst source = b.source === 'auto' ? 'auto' : 'manual';\n\nconst conv = Array.isArray(b.conversation) ? b.conversation.filter(m => String(m.text || '').trim()).slice(-12) : [];\nconst conversation = conv\n  .map(m => (m.role === 'user' ? 'Customer: ' : 'Assistant: ') + String(m.text || '').slice(0, 500))\n  .join('\\n');\n\nreturn [{\n  json: {\n    ticket_id,\n    email: String(b.email).trim(),\n    question: String(b.question).trim().slice(0, 1000),\n    ai_answer: String(b.ai_answer || '').slice(0, 2000),\n    user_feedback: String(b.user_feedback || '').slice(0, 500),\n    conversation,\n    category: String(b.category || 'Other').slice(0, 50),\n    priority,\n    source,\n    status: 'Open'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1472,
+        -96
+      ],
+      "id": "e043d276-05a3-45e2-8371-fd6f6a672db9",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "tableId": "tickets",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "ticket_id",
+              "fieldValue": "={{ $json.ticket_id }}"
+            },
+            {
+              "fieldId": "email",
+              "fieldValue": "={{ $json.email }}"
+            },
+            {
+              "fieldId": "question",
+              "fieldValue": "={{ $json.question }}"
+            },
+            {
+              "fieldId": "ai_answer",
+              "fieldValue": "={{ $json.ai_answer }}"
+            },
+            {
+              "fieldId": "user_feedback",
+              "fieldValue": "={{ $json.user_feedback }}"
+            },
+            {
+              "fieldId": "conversation",
+              "fieldValue": "={{ $json.conversation }}"
+            },
+            {
+              "fieldId": "category",
+              "fieldValue": "={{ $json.category }}"
+            },
+            {
+              "fieldId": "priority",
+              "fieldValue": "={{ $json.priority }}"
+            },
+            {
+              "fieldId": "source",
+              "fieldValue": "={{ $json.source }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "={{ $json.status }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1696,
+        -96
+      ],
+      "id": "40eaa3a2-7fef-4b2b-be49-4b1fec2cf19b",
+      "name": "Create a row",
+      "credentials": {
+        "supabaseApi": {
+          "id": "pBYAm1D0B1yqWN2z",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0C5KHMAPFU",
+          "mode": "list",
+          "cachedResultName": "support-alerts"
+        },
+        "text": "={{ $('Code in JavaScript').item.json.priority === 'urgent' ? '🔴' : ($('Code in JavaScript').item.json.priority === 'medium' ? '🟠' : '🟢') }} New Support Ticket: {{ $('Code in JavaScript').item.json.ticket_id }}\nPriority: {{ $('Code in JavaScript').item.json.priority }} | Category: {{ $('Code in JavaScript').item.json.category }} | Source: {{ $('Code in JavaScript').item.json.source }}\nEmail: {{ $('Code in JavaScript').item.json.email }}\nQuestion: {{ $('Code in JavaScript').item.json.question }}\nAI Answer: {{ $('Code in JavaScript').item.json.ai_answer }}\nCustomer feedback: {{ $('Code in JavaScript').item.json.user_feedback }}\n\nConversation:\n{{ $('Code in JavaScript').item.json.conversation }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.7,
+      "position": [
+        1920,
+        -96
+      ],
+      "id": "051213cf-1777-428a-8543-91f0ed0839f3",
+      "name": "Send a message",
+      "webhookId": "c405ebdf-7acd-4cc7-93c4-c1f163c03b56",
+      "credentials": {
+        "slackApi": {
+          "id": "xF5bsPBLxmnI59Y6",
+          "name": "Slack account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { escalated: true, ticket_id: $('Code in JavaScript').item.json.ticket_id, message: \"Ticket created successfully\", priority: $('Code in JavaScript').item.json.priority, category: $('Code in JavaScript').item.json.category } }}",
+        "options": {
+          "responseCode": 201,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        2144,
+        -96
+      ],
+      "id": "615e347d-7bbe-4b79-935c-645c788935b2",
+      "name": "Respond to Webhook1"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Customer question: {{ $json.body.question }}\nAssistant answer: {{ $json.body.answer }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "You review a customer support chat for NexaFiber Networks and decide if a human support ticket is needed.\nReturn ONLY a JSON object, no markdown:\n{\"needs_escalation\": true, \"priority\": \"low\", \"category\": \"Other\", \"reason\": \"short reason\"}\n\nneeds_escalation = false when the assistant gave concrete steps or facts that answer the question. This stays false even if the answer ends with a polite line such as \"contact support if it still does not work\". Also false for greetings or thanks, and when an area outage with an ETA explains the problem and the customer did not say it continues.\n\nneeds_escalation = true only when: the assistant said it could not find the information or is passing the question to the support team; or the customer asks for a human, an agent or a technician; or the customer says the answer did not help or the problem still continues; or the issue clearly needs a technician, a billing review or a suspended-service review.\n\npriority: urgent = service suspended, no internet for a long time, or an angry customer; medium = needs follow-up; low = minor.\ncategory: one of Account, Plans, Billing, Installation, Router, Troubleshooting, Outage, Policy, Support, Coverage, Other."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        672,
+        128
+      ],
+      "id": "6859f71f-27ca-4489-8fab-be0146bd63df",
+      "name": "Classify"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-4o-mini",
+        "options": {
+          "temperature": 0
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        752,
+        352
+      ],
+      "id": "94fd995c-1f61-4b2a-a171-42ccf012f2ab",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "UMS0iYArSJj5EOc0",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $('Webhook').first().json.body || {};\nlet raw = String($input.first().json.text || '').replace(/```json|```/g, '').trim();\n\nlet r = null;\ntry { r = JSON.parse(raw); }\ncatch (e) {\n  const m = raw.match(/\\{[\\s\\S]*\\}/);\n  try { r = JSON.parse(m ? m[0] : ''); } catch (e2) { r = null; }\n}\n\nconst q = String(body.question || '');\nconst a = String(body.answer || '');\nconst email = String(body.email || '').trim();\nconst emailOk = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email);\n\n// Rule-based decision: the AI only suggests priority and category.\nconst wantsHuman = /(human|real person|technician|insaan|agent se)/i.test(q);\nconst unanswered = /((could not|couldn't|cannot|can't|unable to) find|(do not|don't|does not) (currently )?have (any )?(specific |reliable )?information|pass(ing)? (your|the) question|maloomat nahi|no information)/i.test(a);\nconst persists = /(still (not working|down|locked|slow)|abhi bhi|phir bhi|did not help|didn't help|not helpful|nahi chala|nahi chal raha)/i.test(q);\n\nlet escalate = wantsHuman || unanswered || persists;\nif (!emailOk || !q.trim()) escalate = false;\n\nconst priorities = ['low', 'medium', 'urgent'];\n\nreturn [{\n  json: {\n    escalate,\n    email,\n    question: q.slice(0, 1000),\n    ai_answer: a.slice(0, 2000),\n    user_feedback: r && r.reason ? String(r.reason).slice(0, 300) : 'Auto-escalated',\n    category: (r && r.category) || 'Other',\n    priority: priorities.includes(r && r.priority) ? r.priority : 'medium',\n    source: 'auto',\n    conversation: Array.isArray(body.conversation) ? body.conversation : []\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1024,
+        128
+      ],
+      "id": "4dde18d4-0834-44dc-829c-f20930864b11",
+      "name": "Parse Decision"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "4e75d654-c078-4221-8102-8ca2e733aed3",
+              "leftValue": "={{ $json.escalate === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1248,
+        128
+      ],
+      "id": "7abaed60-e1f7-4faa-93f9-449b8b516959",
+      "name": "Escalate?"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{ \"escalated\": false }",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1472,
+        176
+      ],
+      "id": "0a9b1bc5-4e12-4a91-bf42-de9bc10eef6a",
+      "name": "Respond Not Escalated"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "d952e5b7-67eb-4026-a99f-d74bbfc7c8e1",
+              "leftValue": "={{ $json.body.mode === 'check' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        448,
+        0
+      ],
+      "id": "235b9532-a3d4-4584-9447-df87da27d81d",
+      "name": "Is Check?"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Is Check?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Create a row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a row": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify": {
+      "main": [
+        [
+          {
+            "node": "Parse Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Classify",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Decision": {
+      "main": [
+        [
+          {
+            "node": "Escalate?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Escalate?": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Not Escalated",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Check?": {
+      "main": [
+        [
+          {
+            "node": "Classify",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "6315ea70-86d7-43ed-a48e-7fd6703212ca",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5c2d3d095b788dab51be3c4b52f7a2cfbf2fac25baf93cbc9ea5c6aecbf1d121"
+  },
+  "nodeGroups": [],
+  "id": "CxIFx5EyH1rrg32S",
+  "tags": []
+}
